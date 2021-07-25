@@ -1,18 +1,20 @@
 <?php
-
-declare(strict_types=1);
-
-namespace app\admin\service;
-
+namespace app\admin\service\dingding;
+use think\facade\Cache;
+use app\common\traits\JumpTrait;
 use Actioncard;
 use DingTalkClient;
 use DingTalkConstant;
 use OapiChatCreateRequest;
 use OapiGettokenRequest;
-use think\facade\Cache;
+use OapiChatQrcodeGetRequest;
+use OapiChatMemberFriendswitchUpdateRequest;
 use OapiUserGetbyunionidRequest;
 use OapiSnsGetuserinfoBycodeRequest;
-use app\common\traits\JumpTrait;
+use OapiChatUpdategroupnickRequest;
+use  OapiChatSubadminUpdateRequest;
+use OapiInactiveUserGetRequest;
+use OapiV2UserGetRequest;
 use BtnJson;
 use File;
 use Image;
@@ -122,6 +124,22 @@ class DingDingService  extends \think\Service
     }
 
     /**
+     * 测试
+     */
+    public function text() {
+        $msg = [
+            "msgtype" => "oa",
+            "oa" => [
+
+            ]
+
+            
+        ];
+        $this->chatSingleSendMsg("2407223739769049","c348d3ea53573934ae16856dcfceb2e4",$msg);
+        return true;
+    }
+
+    /**
      * 修改钉钉群
      *
      * @param string $chat_id 群id
@@ -134,6 +152,113 @@ class DingDingService  extends \think\Service
         $req->setName($name);
         $req->setChatid($chat_id);
         $resp = $this->service->execute($req,$this->AccessToken,'https://oapi.dingtalk.com/chat/update');
+        $this->checkRequest($resp);
+        return true;
+    }
+
+    ##########################通讯录管理########################################
+    #用户管理#
+
+    /**
+     * 根据userid获取用户详情
+     * @param String $user_id 用户userid
+     * @param Object
+     */
+    public function getV2User($user_id) {
+        $req = new OapiV2UserGetRequest;
+        $req->setUserid($user_id);
+        $resp = $this->service->execute($req, $this->AccessToken, "https://oapi.dingtalk.com/topapi/v2/user/get");
+        $this->checkRequest($resp);
+        return $resp->result;
+    }
+
+    /**
+     * 获取未登陆钉钉的员工列表
+     * @param string $query_date 查询日期,日期格式为yyyyMMdd
+     * @param int $offset 偏移量，从0开始
+     * @param int $size 数据量，最大为100
+     * @return array ["has_more" => false, "list" => []]  has_more 是否有更多数据，list 数据列表
+     */
+    public function getInactiveUser($query_date, $offset = 0, $size = 100) {
+        $req = new OapiInactiveUserGetRequest;
+        $req->setQueryDate($query_date);
+        $req->setOffset($offset);
+        $req->setSize($size);
+        $resp = $this->service->execute($req, $this->AccessToken, "https://oapi.dingtalk.com/topapi/inactive/user/get");
+        $this->checkRequest($resp);
+        return $resp->result;
+    }
+
+    ##########################消息通知########################################
+    #群消息#
+
+    /**
+     * 设置群管理员
+     * @param String $chat_id 群id
+     * @param String $user_id 用户userid 多个参数请用","分割
+     * @param int $role  2为添加管理员  3为删除管理员
+     * @return bool
+     */
+    public function chatSubadminUpdate($chat_id, $user_id, $role) {
+        $req = new OapiChatSubadminUpdateRequest;
+        $req->setChatid($chat_id);
+        $req->setUserids($user_id);
+        $req->setRole($role);
+        $resp = $this->service->execute($req, $this->AccessToken, "https://oapi.dingtalk.com/topapi/chat/subadmin/update");
+        $this->checkRequest($resp);
+        return true;
+    }
+
+    /**
+     * 获取入群二维码链接
+     * @param String $chat_id 群id(后续版本中chat_id将不在使用，用$openConversationId代替)
+     * @param String $user_id 用户userid
+     * @param String $openConversationId  群id
+     * @return String 入群的链接
+     */
+    public function getChatQrcodeLink($chat_id,$user_id,$openConversationId = "") {
+
+        $req = new OapiChatQrcodeGetRequest;
+        if($chat_id != "") {
+            $req->setChatid($chat_id);
+        } else {
+            $req->setOpenConversationId($openConversationId);
+        }
+        $req->setUserid($user_id);
+        $resp = $this->service->execute($req,$this->AccessToken,'https://oapi.dingtalk.com/topapi/chat/qrcode/get');
+        $this->checkRequest($resp);
+        return $resp->result;
+    }
+
+
+    /**
+     * 设置禁止群成员私聊
+     * @param string $chat_id 群id
+     * @param bool $is_prohibit 是否开启禁止群成员私聊
+     * @return bool
+     */
+    public function chatMemberFriendswitchUpdate($chat_id, $is_prohibit = false) {
+        $req = new OapiChatMemberFriendswitchUpdateRequest;
+        $req->setChatid($chat_id);
+        $req->setIsProhibit($is_prohibit);
+        $resp = $this->service->execute($req, $this->AccessToken, "https://oapi.dingtalk.com/topapi/chat/member/friendswitch/update");
+        $this->checkRequest($resp);
+        return true;
+    }
+
+    /**
+     * 设置群成员昵称
+     * @param String $user_id 用户userid
+     * @param String $chat_id 群id
+     * @param String $group_nick 新昵称
+     * @return bool 
+     */
+    public function chatUpdategroupnick($user_id, $chat_id, $group_nick) {
+        $req = new OapiChatUpdategroupnickRequest;
+        $req->setUserid($user_id);
+        $req->setChatid($chat_id);
+        $req->setGroupNick($group_nick);
+        $resp = $this->service->execute($req, $this->AccessToken, "https://oapi.dingtalk.com/topapi/chat/updategroupnick");
         $this->checkRequest($resp);
         return true;
     }
@@ -175,10 +300,7 @@ class DingDingService  extends \think\Service
         $req->setCid($cid);       //群会话或者个人会话id
         //获取消息类型
         $msg_type = $msg['msgtype'] ?? "text";
-        if(!isset($msg['msgtype']) || !isset($msg[$msg_type])) {
-            //参数不合法
-            return false;
-        }
+      
         switch ($msg['msgtype'])
             {
             case "text":
@@ -210,9 +332,9 @@ class DingDingService  extends \think\Service
             case "link":
                  //链接消息
                 $link = new Link();
-                isset($msg[$msg_type]['messageUrl']) && $link->message_url = $msg[$msg_type]['messageUrl']; //消息点击链接地址
+                isset($msg[$msg_type]['messageUrl']) && $link->messageUrl = $msg[$msg_type]['messageUrl']; //消息点击链接地址
                 isset($msg[$msg_type]['title']) && $link->title = $msg[$msg_type]['title'];   //消息标题
-                isset($msg[$msg_type]['picUrl']) && $link->pic_url = $msg[$msg_type]['picUrl']; //图片地址
+                isset($msg[$msg_type]['picUrl']) && $link->picUrl = $msg[$msg_type]['picUrl']; //图片地址
                 isset($msg[$msg_type]['text']) && $link->text = $msg[$msg_type]['text'];     //消息描述
                 $req->setLink($link);
                 break;
@@ -289,58 +411,14 @@ class DingDingService  extends \think\Service
             }
             
         $req->setMsgtype($msg_type); //设置消息类型
-        $resp = $this->service->execute($req, $this->access_token, "https://oapi.dingtalk.com/message/send_to_conversation");
+        $resp = $this->service->execute($req, $this->AccessToken, "https://oapi.dingtalk.com/message/send_to_conversation");
         $this->checkRequest($resp);
         return true;
         
         
     }
 
-    /**
-     * 单发信息--消息内容数据格式验证
-     * @param object $msg 消息内容
-     * @return  bool
-     */
-    public function msgFormatVerify($msg) {
-        //消息类型
-        $msg_type = $msg['msgtype'] ?? "text" ;
-        $paramInfo= [
-            "text" => [
-                "content" => ["required" => 1] //消息内容
-            ],
-            "image" => [
-                "media_id" => ['required' => 1] //媒体文件mediaid
-            ],
-            "voice" => [
-                "media_id" => ["required" => 1],//媒体文件mediaid
-                "duration" => ["required" => 1] //音频时长，小于60
-            ],
-            "file" => [
-                "media_id" => ["required" => 1] //媒体文件mediaid
-            ],
-            "link" => [
-                "messageUrl" => ["required" => 1], //消息点击链接地址
-                "picUrl" => ['required' => 1], //图片地址
-                "title" => ["required" => 1],  //消息标题
-                "text" => ["required" => 1]    //消息描述
-            ],
-            "markdown" => [
-                "title" => ['required' => 1], //首屏会话透出的展示内容
-                "text" => ["required" => 1]   //markdown格式的消息
-            ],
-            "action_card" => [
-                "markdown" => ['required' => 1], //消息内容
-                "title" => ['required' => 0], //透出到会话列表和通知的文案
-                "single_title" => ['required' => 0],
-                "single_url" => ['required' => 0],
-                "btn_orientation" => ['required' => 0],
-                "btn_json_list" => ['required' => 0]
-            ]
-
-        ];
-
-    }
-
+    
     /**
      * 获取token
      *
@@ -356,6 +434,7 @@ class DingDingService  extends \think\Service
             // 这里需要换get请求方式
             $get_service = new DingTalkClient(DingTalkConstant::$CALL_TYPE_OAPI, DingTalkConstant::$METHOD_GET, DingTalkConstant::$FORMAT_JSON);
             $resp = $get_service->execute($req,'', "https://oapi.dingtalk.com/gettoken");
+      
             $this->checkRequest($resp);
             Cache::set('dingding_token', $resp->access_token, 7100);
             return $this->getToken();
@@ -379,3 +458,4 @@ class DingDingService  extends \think\Service
         }
     }
 }
+?>
