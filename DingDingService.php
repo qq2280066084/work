@@ -35,7 +35,12 @@ class DingDingService  extends \think\Service
 {
 
     use JumpTrait;
-
+    //token: dc9bd2e02c1537e5a1ca5c31bf43417c
+    //chat_id: chat69d42ca45435b28626443fd26a230fd6
+    //useid: 2407223739769049
+    //union_id: vHIf7He0azSGgNK4cghd1AiEiE
+    //app_key: dingnieaampv7vn976h7
+    //app_secret: zSiGR552VxBqbmkiu-t4tD5W1jlorpi8Q9bJ3I14apsUK13HTx1WKdCbwyIHpe-u
     /** @var DingTalkClient $service */
     protected $service;
     /** @var string 应用id */
