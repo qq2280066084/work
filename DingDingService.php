@@ -15,6 +15,7 @@ use OapiChatUpdategroupnickRequest;
 use  OapiChatSubadminUpdateRequest;
 use OapiInactiveUserGetRequest;
 use OapiV2UserGetRequest;
+use OapiMessageCorpconversationAsyncsendV2Request;
 use BtnJson;
 use File;
 use Image;
@@ -31,11 +32,12 @@ use Head;
 use Body;
 use Rich;
 use Form;
+use StatusBar;
 class DingDingService  extends \think\Service
 {
 
     use JumpTrait;
-    //token: dc9bd2e02c1537e5a1ca5c31bf43417c
+    //token: 1a58d44945ac3176abfb9cf47858cbba
     //chat_id: chat69d42ca45435b28626443fd26a230fd6
     //useid: 2407223739769049
     //union_id: vHIf7He0azSGgNK4cghd1AiEiE
@@ -290,7 +292,152 @@ class DingDingService  extends \think\Service
         return true;
     }
 
-
+    
+    
+    /**
+     * 发送工作通知
+     * @param string $userid_list 接收者的用户userid，多个参数请用","分割
+     * @param array $msg 消息体
+     * @return bool 
+     */
+    public function MessageCorpconversationAsyncsend($userid_list,$msg) {
+        $req = new OapiMessageCorpconversationAsyncsendV2Request;
+        $req->setAgentId($this->agentid);
+        $req->setUseridList($userid_list);
+         //获取消息类型
+         $msg_type = $msg['msgtype'] ?? "text";
+         $t_msg = new Msg();
+         switch ($msg['msgtype'])
+             {
+             case "text":
+                 $text = new Text(); 
+                 isset($msg[$msg_type]['content']) &&  $text->content = $msg[$msg_type]['content'];   //消息内容
+                 $t_msg->msgtype = $msg_type;
+                 $t_msg->text = $text;
+                     
+                 break; 
+             case "image":
+                 //图片消息
+                 $image = new Image(); 
+                 isset($msg[$msg_type]['media_id']) && $image->media_id = $msg[$msg_type]['media_id']; //媒体文件mediaid
+                 $t_msg->msgtype = $msg_type;
+                 $t_msg->image = $image;
+                 break;
+             case "voice":
+                 //语音消息
+                 $voice = new Voice(); 
+                 isset($msg[$msg_type]['duration']) && $voice->duration = $msg[$msg_type]['duration'];   //音频时长
+                 isset($msg[$msg_type]['media_id']) && $voice->media_id = $msg[$msg_type]['media_id'];  //媒体文件mediaid
+                 $t_msg->msgtype = $msg_type;
+                 $t_msg->voice = $voice;
+                 break;
+             case "file":
+                 //文件消息
+                 $file = new File(); 
+                 isset($msg[$msg_type]['media_id']) && $file->media_id = $msg[$msg_type]['media_id'];  //媒体文件mediaid
+                 $t_msg->msgtype = $msg_type;
+                 $t_msg->file = $file;
+                 break;
+             case "link":
+                  //链接消息
+                 $link = new Link();
+                 isset($msg[$msg_type]['messageUrl']) && $link->messageUrl = $msg[$msg_type]['messageUrl']; //消息点击链接地址
+                 isset($msg[$msg_type]['title']) && $link->title = $msg[$msg_type]['title'];   //消息标题
+                 isset($msg[$msg_type]['picUrl']) && $link->picUrl = $msg[$msg_type]['picUrl']; //图片地址
+                 isset($msg[$msg_type]['text']) && $link->text = $msg[$msg_type]['text'];     //消息描述
+                 $t_msg->msgtype = $msg_type;
+                 $t_msg->link = $link;
+                 break;
+             case "markdown":
+                 //markdown
+                 $markdown = new Markdown();
+                 isset($msg[$msg_type]['title']) && $markdown->title = $msg[$msg_type]['title'];  //首屏会话透出的展示内容
+                 isset($msg[$msg_type]['text']) && $markdown->text = $msg[$msg_type]['text']; //markdown格式的消息
+                 $t_msg->msgtype = $msg_type;
+                 $t_msg->markdown = $markdown;
+                 break;
+             case "action_card":
+                 //卡片消息
+                 //卡片类型  1 整体跳转  2 独立跳转
+                 $card_type = isset($msg[$msg_type]['single_title']) && isset($msg[$msg_type]['single_url']) ? 1 : 2;
+                 $action_card = new Actioncard();
+                 isset($msg[$msg_type]['title']) && $action_card->title = $msg[$msg_type]['title'];  //透出到会话列表和通知的文案
+                 isset($msg[$msg_type]['markdown']) && $action_card->markdown = $msg[$msg_type]['markdown']; //消息内容
+                 if($card_type == 1) {
+                     isset($msg[$msg_type]['single_url']) && $action_card->single_url= $msg[$msg_type]['single_url'];  //消息点击链接地址
+                     isset($msg[$msg_type]['single_title']) && $action_card->single_title= $msg[$msg_type]['single_title']; //使用整体跳转ActionCard样式时的标题
+                 } else {
+                     isset($msg[$msg_type]['btn_orientation']) && $action_card->btn_orientation = $msg[$msg_type]['btn_orientation']; //使用独立跳转ActionCard样式时的按钮排列方式  0：竖直排列  1：横向排列
+                   
+                     $btn_json_list = [];
+                     foreach ($msg[$msg_type]['btn_json_list'] as $key => $value) {
+                         $btn_json_list_item = new BtnJson();
+                         $btn_json_list_item->title = $value['title'];
+                         $btn_json_list_item->action_url = $value['action_url'];
+                         $btn_json_list[] = $btn_json_list_item;
+                     }
+                     $action_card->btn_json_list = $btn_json_list;
+                     
+                 }
+                 $t_msg->msgtype = $msg_type;
+                 $t_msg->action_card = $action_card;
+                 break;
+             case "oa":
+                 //oa消息类型
+                 $oa = new OA;
+                 isset($msg[$msg_type]['message_url']) && $oa->message_url = $msg[$msg_type]['message_url']; //消息点击链接地址
+                 isset($msg[$msg_type]['pc_message_url']) && $oa->message_url = $msg[$msg_type]['pc_message_url']; //PC端点击消息时跳转到的地址
+                 //消息头部内容
+                 $head = new Head;
+                 $head->bgcolor= $msg[$msg_type]['head']['bgcolor'] ?? "";  //消息头部的背景颜色
+                 $head->text= $msg[$msg_type]['head']['text'] ?? "";  //消息的头部标题
+                 $oa->head = $head;
+ 
+                 $body = new Body();
+                 $body->title= $msg[$msg_type]['body']['title'] ?? "";    //消息体的标题
+                 $body->content = $msg[$msg_type]['body']['content'] ?? ""; //消息体的内容，最多显示3行
+                 $body->image = $msg[$msg_type]['body']['image'] ?? "";    //消息体中的图片，支持图片资源@mediaId
+                 $body->file_count = $msg[$msg_type]['body']['file_count'] ?? "";  //自定义的附件数目    
+                 $body->author = $msg[$msg_type]['body']['author'] ?? "";  //自定义的作者名字
+                 //单行富文本信息
+                 $rich = new Rich;
+                 $rich->num= $msg[$msg_type]['body']['rich']['num'] ?? "";  //单行富文本信息的数目
+                 $rich->unit= $msg[$msg_type]['body']['rich']['unit'] ?? "";  //单行富文本信息的单位
+                 $body->rich = $rich;
+ 
+                 $forms = [];   //消息体的表单，最多显示6个，超过会被隐藏。
+                 if(isset($msg[$msg_type]['body']['form']) && is_array($msg[$msg_type]['body']['form'])) {
+                     foreach ($msg[$msg_type]['body']['form'] as $key => $value) {
+                         $form = new Form;
+                         $form->value = $value['value'];   //消息体的关键字
+                         $form->key = $value['key'];   //消息体的关键字对应的值
+                         $forms[] = $form;
+                     }
+                 }
+                 //消息状态栏
+                 if(isset($msg[$msg_type]['body']['status_bar']) && is_array($msg[$msg_type]['body']['status_bar'])) {
+                    $status_bar = new StatusBar;
+                    foreach ($msg[$msg_type]['body']['status_bar'] as $key => $value) {
+                        # code...
+                        $status_bar->$key = $value;
+                    }
+                  
+                 }
+                 $body->form = $forms;
+ 
+                 $oa->body = $body;
+                 $t_msg->msgtype = $msg_type;
+                 $t_msg->oa = $oa;
+                 break;
+             
+             }
+             
+         $req->setMsg($t_msg);
+         $resp = $this->service->execute($req, $this->AccessToken, "https://oapi.dingtalk.com/topapi/message/corpconversation/asyncsend_v2");
+         $this->checkRequest($resp);
+         return true;
+    }
+    
     
     /**
      * 单发信息
